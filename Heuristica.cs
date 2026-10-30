@@ -5,7 +5,7 @@ public static class Heuristica
     private const double Epsilon = 1e-9;
 
     // Tenta ordens gulosas distintas; falha da heurística não prova inviabilidade.
-    public static (Solucao Solucao, int Tentativa) Construir(Instancia instancia, int maxTipos, int seed, int tentativas, Historico? historico = null)
+    public static (Solucao Solucao, int Tentativa) Construir(Instancia instancia, int maxTipos, int seed, int tentativas, Historico? historico = null, bool aleatorizar = false)
     {
         if (maxTipos is not (1 or 2) || tentativas < 1) throw new ArgumentException("Parâmetros inválidos da construção.");
         if (instancia.Escolas.Sum(e => (long)e.Capacidade) < instancia.Candidatos.Length)
@@ -19,7 +19,7 @@ public static class Heuristica
             if (tentativa % 2 == 0)
             {
                 historico?.Iniciar(tentativa, "Concentração por tipo");
-                var agrupada = ConstruirPorTipo(instancia, maxTipos, random, tentativa == 2, historico);
+                var agrupada = ConstruirPorTipo(instancia, maxTipos, random, tentativa == 2 && !aleatorizar, historico);
                 historico?.Encerrar(agrupada is not null);
                 if (agrupada is not null)
                 {
@@ -48,11 +48,11 @@ public static class Heuristica
                 // Primeira tentativa determinística; reinícios usam lista restrita dos três prioritários.
                 var ordenadas = opcoes.OrderBy(o => o.Escolas.Length == 1 ? 0 : 1)
                     .ThenByDescending(o => o.Arrependimento)
-                    .ThenBy(o => tentativa == 1 ? o.Candidato : o.Desempate).ToArray();
-                var escolhido = ordenadas[tentativa == 1 ? 0 : random.Next(Math.Min(3, ordenadas.Length))];
+                    .ThenBy(o => tentativa == 1 && !aleatorizar ? o.Candidato : o.Desempate).ToArray();
+                var escolhido = ordenadas[tentativa == 1 && !aleatorizar ? 0 : random.Next(Math.Min(3, ordenadas.Length))];
                 int escola = escolhido.Escolas[0];
                 // Nos reinícios, variar também a escola permite escapar de bloqueios por tipos.
-                if (tentativa > 1 && random.NextDouble() < 0.25)
+                if ((tentativa > 1 || aleatorizar) && random.NextDouble() < 0.25)
                     escola = escolhido.Escolas[random.Next(Math.Min(3, escolhido.Escolas.Length))];
                 solucao.Inserir(instancia, escolhido.Candidato, escola);
                 historico?.Alocar(instancia, escolhido.Candidato, escola);

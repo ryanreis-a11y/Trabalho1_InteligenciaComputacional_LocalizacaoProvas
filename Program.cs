@@ -34,7 +34,7 @@ public static class Program
                 try
                 {
                     var relogio = Stopwatch.StartNew();
-                    var (solucao, tentativa) = Heuristica.Construir(instancia, opcoes.MaxTipos, seed, opcoes.Tentativas, historico);
+                    var (solucao, tentativa) = Heuristica.Construir(instancia, opcoes.MaxTipos, seed, opcoes.Tentativas, historico, aleatorizar: execucao > 0);
                     double tempoConstrucao = relogio.Elapsed.TotalMilliseconds;
                     double inicial = solucao.Custo(instancia);
                     int[] alocacaoInicial = (int[])solucao.Alocacao.Clone();

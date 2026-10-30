@@ -116,7 +116,12 @@ As tentativas alternam duas estratégias gerais, até encontrar a primeira solu�
 1. **Tentativas ímpares: arrependimento por candidato.** Recalcula as escolas viáveis dos candidatos restantes. Prioriza candidatos com uma única opção e depois o maior arrependimento: distância da segunda melhor escola menos a distância da melhor. Aloca na escola viável mais próxima. Se algum candidato não tiver opção, abandona essa tentativa.
 2. **Tentativas pares: concentração por tipo.** Ordena os grupos por demanda decrescente. Para cada grupo, escolhe a escola capaz de receber o maior lote de candidatos restantes; empates usam a menor distância média do lote. Preenche o lote com os candidatos mais próximos. Isso busca poupar posições de tipos nas escolas, ao custo de decisões geográficas potencialmente piores.
 
-A primeira tentativa de cada estratégia é determinística. Nas ímpares posteriores, a escolha do candidato é sorteada entre os três primeiros na ordenação; com probabilidade de 25%, a escola é sorteada entre as três viáveis mais próximas. Nas pares posteriores, a prioridade dos grupos usa `demanda * (0.5 + U)`, com `U` uniforme em `[0, 1)`, e a escola é sorteada entre as três primeiras. Esses valores são fixos gerais, não calibrados com os arquivos fornecidos.
+A aleatorização da construção depende também do número da execução:
+
+- **Primeira execução do lote:** mantém o comportamento de referência. A primeira tentativa de arrependimento por candidato (tentativa 1) é determinística, assim como a primeira tentativa de concentração por tipo (tentativa 2), caso seja necessária. Nas tentativas posteriores, são introduzidas escolhas aleatórias.
+- **Execuções seguintes:** a construção já começa aleatorizada desde a primeira tentativa. Na estratégia de arrependimento por candidato (tentativas ímpares), o candidato é escolhido aleatoriamente entre os três primeiros da ordenação. Com probabilidade de 25%, a escola também é escolhida aleatoriamente entre as três opções viáveis mais próximas. Na estratégia de concentração por tipo (tentativas pares), a prioridade dos grupos utiliza `demanda * (0.5 + U)`, com `U` uniforme em `[0, 1)`, e a escola é escolhida aleatoriamente entre as três melhores opções.
+
+Essas escolhas introduzem diversidade nas soluções iniciais, mantendo os critérios gerais de prioridade e viabilidade. Os parâmetros de aleatorização são fixos e não foram calibrados para as instâncias fornecidas.
 
 Reinícios descartam integralmente a construção parcial bloqueada. Não é usada busca exata para completar a solução. `--tentativas 1` testa somente a construção inicial por arrependimento. Sementes distintas podem gerar o mesmo resultado, especialmente se uma das duas primeiras tentativas determinísticas tiver sucesso.
 
@@ -147,7 +152,11 @@ dotnet run -c Release -- --instancia instancia_1_g08 --max-tipos 1 --seed 42 --e
 dotnet run -c Release -- --instancia instancia_1_g08 --max-tipos 1 --seed 42 --execucoes 10 --busca vnd
 ```
 
-Sem `--seed`, cada execução sorteia sua própria semente, que aparece no terminal, no nome da pasta de execução, nos dados exportados e no CSV. Para repetir uma execução, informe a semente registrada com `--seed NUMERO`. Com `--seed 42 --execucoes 10`, as sementes serão 42 a 51. O sorteio não garante sementes distintas nem soluções diferentes; as primeiras tentativas construtivas são determinísticas.
+Sem `--seed`, cada execução recebe uma semente sorteada, que aparece no terminal, no nome da pasta de execução, nos dados exportados e no CSV. Para reproduzir um lote de execuções, informe a mesma semente inicial e mantenha os mesmos parâmetros.
+
+Com `--seed 42 --execucoes 10`, as sementes serão 42 a 51. A primeira execução utiliza a construção de referência, enquanto as nove seguintes utilizam construção aleatorizada desde a primeira tentativa.
+
+Sementes distintas não garantem soluções diferentes, assim como a aleatorização não garante diversidade entre todos os resultados.
 
 Repita com `--max-tipos 2`; o programa escolhe a pasta automaticamente. Para comparar buscas de forma pareada, mantenha a mesma instância, semente explícita e limite de tentativas. A busca local não consome números aleatórios, portanto parte da mesma solução inicial nessas condições.
 
