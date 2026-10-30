@@ -123,7 +123,7 @@ A aleatorização da construção depende também do número da execução:
 
 Essas escolhas introduzem diversidade nas soluções iniciais, mantendo os critérios gerais de prioridade e viabilidade. Os parâmetros de aleatorização são fixos e não foram calibrados para as instâncias fornecidas.
 
-Reinícios descartam integralmente a construção parcial bloqueada. Não é usada busca exata para completar a solução. `--tentativas 1` testa somente a construção inicial por arrependimento. Sementes distintas podem gerar o mesmo resultado, especialmente se uma das duas primeiras tentativas determinísticas tiver sucesso.
+Reinícios descartam integralmente a construção parcial bloqueada. Não é usada busca exata para completar a solução. `--tentativas 1` testa somente a construção inicial por arrependimento. Sementes distintas ainda podem gerar o mesmo resultado, pois trajetórias diferentes podem convergir para a mesma solução. A API também preserva o modo determinístico opcional para comparação com a versão de referência.
 
 **Limitação:** reinícios não garantem encontrar uma solução viável, mesmo quando ela existe. Falha da heurística não é prova de inviabilidade. O programa só declara inviabilidade diretamente em duas condições necessárias: capacidade total menor que a demanda ou tipos distintos excedendo `maxTipos * quantidadeEscolas`. Passar nessas verificações não garante viabilidade.
 
@@ -140,7 +140,7 @@ Usa primeira melhora, com ordem dos candidatos e escolas definida pela entrada:
 
 ### Custo computacional
 
-Com `n` candidatos e `m` escolas, a construção individual ordena até `m` opções por candidato a cada alocação: aproximadamente `O(n² m log(m))` por tentativa. A construção por grupos ordena candidatos para formar lotes. Uma varredura de realocação custa `O(nm)` e uma de troca custa `O(n²)`, assumindo operações médias constantes nos dicionários. Cada melhoria reinicia a varredura. A matriz ocupa `O(nm)` memória. Não há promessa de desempenho para entradas muito grandes.
+Com `n` candidatos e `m` escolas, a construção individual pré-ordena as escolas por distância e atualiza a viabilidade apenas na escola modificada. A ordenação completa dos candidatos foi substituída pela manutenção dos três primeiros, preservando o critério de escolha e o consumo de números aleatórios. A construção por grupos ordena candidatos para formar lotes. A busca inicializa as realocações em `O(nm)` e os pares de troca em `O(n²)`. Tabelas de bits armazenam os movimentos melhorantes; apenas entradas afetadas pelo último movimento são atualizadas. A seleção mantém a mesma ordem lexicográfica da primeira melhora. No pior caso, uma atualização ainda pode afetar `O(n²)` pares. A matriz ocupa `O(nm)` memória, e o cache de pares acrescenta `O(n²)` bits. Não há promessa de desempenho para entradas muito grandes.
 
 ## Experimentos e saídas
 
@@ -207,10 +207,40 @@ Os arquivos do projeto e os resultados gerados usam **UTF-8** e terminações **
 
 - `Modelos.cs`: entrada genérica, solução, contadores e validação.
 - `LeitorTxt.cs`: interpretação do formato TXT da disciplina.
-- `Heuristica.cs`: construções e busca local.
+- `Heuristica.cs`: construções e interface das buscas.
+- `BuscaLocalEficiente.cs`: caches de realocação e troca, mantendo a primeira melhora.
 - `Program.cs`: parâmetros, execuções e exportação.
 - `Catalogo.cs`: resolução por nome e localização das pastas.
 - `Historico.cs`: registro cronológico das ações.
 - `Apresentacao.cs`: tabela e gráfico exportáveis.
 
-O código atende à parte de implementação. Relatório em LaTeX/SBC, PDF, slides e publicação no GitHub são entregas separadas, ainda não produzidas por este projeto.
+## Lote experimental e entregas
+
+A revisão toma como base a branch `correcoes`, commit `191b41d`. A aleatorização passou a atuar desde a primeira execução do comando, permitindo reproduzir uma repetição apenas pela semente e pelos parâmetros. Foram acrescentadas acelerações da construção e da busca, mantendo a ordem dos movimentos da referência.
+
+```powershell
+dotnet run --project Experimentos/Experimentos.csproj -c Release -- --validar
+dotnet run --project Experimentos/Experimentos.csproj -c Release -- --paralelismo 4
+```
+
+A validação compara 1.000 buscas e 150 construções com as versões de referência. O lote percorre todas as 28 instâncias nos dois modos, usa sementes pareadas e até 100 tentativas construtivas por execução. A meta inicial é 100 repetições principais; após cinco minutos, passa para 50. Há três repetições de diagnóstico por configuração, excluídas da análise principal. Com a redução aplicada neste experimento, os índices 3 a 52 correspondem às **50 execuções principais por configuração**, totalizando **2.800** observações. Falhas de construção também contam como execuções e entram na taxa de sucesso.
+
+O lote grava resultados incrementalmente em `resultados/comparacao_2026_10_30_definitivo/` e pode ser retomado pelo mesmo comando sem repetir chaves já concluídas. A tabela consolidada usa ponto e vírgula. O processamento concorrente afeta os tempos de parede; os documentos informam essa limitação. A coleta do histórico detalhado fica desativada no lote para evitar milhares de arquivos extensos, mas continua disponível nas execuções normais.
+
+Os dados consolidados em `entregas/dados/` cobrem as 56 configurações, com 50 execuções principais em cada uma, totalizando 2.800 observações. As sementes estão registradas para permitir a reprodução dos resultados.
+
+As entregas ficam em:
+
+- `entregas/relatorio/main.tex`: artigo editável em LaTeX, com o estilo SBC e tabelas geradas.
+- `entregas/relatorio/main.pdf`: relatório compilado.
+- `entregas/slides/apresentacao_final.pptx`: slides editáveis com tabelas e gráficos nativos.
+- `entregas/slides/apresentacao.pdf`: versão para projeção e leitura.
+- `entregas/dados/execucoes.csv`: observações principais por execução.
+- `entregas/dados/comparacao.csv`: estatísticas das 56 configurações.
+- `entregas/dados/pares.csv`: comparação dos cenários com sementes pareadas.
+- `entregas/dados/manifesto.json`: procedência e hashes dos fontes.
+- `entregas/exemplos/`: matriz e execuções dos exemplos didáticos, separados do lote oficial.
+
+As matrículas dos integrantes aparecem somente no relatório. Os slides incluem notas com um roteiro de aproximadamente dez minutos. Os resultados preliminares anteriores ao protocolo definitivo foram preservados separadamente e não entram na análise principal.
+
+O programa C# e o lote experimental requerem somente o SDK do .NET 8 ou superior. O relatório acompanha seu fonte LaTeX e o estilo `sbc-template.sty`; os slides estão disponíveis em formato editável e PDF.

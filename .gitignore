@@ -2,3 +2,13 @@ bin/
 obj/
 .vs/
 resultados/
+
+.build/
+
+# Arquivos intermediários da compilação LaTeX
+*.aux
+*.log
+*.out
+*.toc
+*.synctex.gz
+.chart-data-*/

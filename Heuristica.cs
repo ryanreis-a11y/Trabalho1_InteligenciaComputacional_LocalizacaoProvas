@@ -13,6 +13,10 @@ public static class Heuristica
         if ((long)instancia.Candidatos.Select(c => c.Tipo).Distinct().Count() > (long)maxTipos * instancia.Escolas.Length)
             throw new ArgumentException("Instância inviável: tipos distintos excedem as vagas de tipos nas escolas.");
         var random = new Random(seed);
+        // A ordem geográfica é fixa; recalculam-se apenas as opções ainda viáveis.
+        var ordemEscolas = Enumerable.Range(0, instancia.Candidatos.Length)
+            .Select(i => Enumerable.Range(0, instancia.Escolas.Length)
+                .OrderBy(j => instancia.Distancias[i][j]).ThenBy(j => j).ToArray()).ToArray();
         for (int tentativa = 1; tentativa <= tentativas; tentativa++)
         {
             // Alterna estratégias gerais: prioridade individual e concentração por tipo.
@@ -31,31 +35,60 @@ public static class Heuristica
             historico?.Iniciar(tentativa, "Arrependimento por candidato");
             var solucao = new Solucao(instancia);
             bool completa = true;
+            // Na construção, a viabilidade só diminui na escola que recebeu a última entrada.
+            var viaveis = Enumerable.Range(0, instancia.Candidatos.Length)
+                .Select(_ => Enumerable.Repeat(true, instancia.Escolas.Length).ToArray()).ToArray();
+            var quantidades = Enumerable.Repeat(instancia.Escolas.Length, instancia.Candidatos.Length).ToArray();
+            var primeiras = ordemEscolas.Select(o => o[0]).ToArray();
+            var segundas = ordemEscolas.Select(o => o.Length > 1 ? o[1] : -1).ToArray();
             for (int passo = 0; passo < instancia.Candidatos.Length; passo++)
             {
-                var opcoes = Enumerable.Range(0, instancia.Candidatos.Length)
-                    .Where(i => solucao.Alocacao[i] < 0)
-                    .Select(i =>
+                bool deterministica = tentativa == 1 && !aleatorizar;
+                var prioridades = new List<(int Candidato, int Quantidade, double Arrependimento, double Desempate)>(4);
+                bool bloqueada = false;
+                for (int i = 0; i < instancia.Candidatos.Length; i++)
+                {
+                    if (solucao.Alocacao[i] >= 0) continue;
+                    int quantidade = quantidades[i], primeira = primeiras[i], segunda = segundas[i];
+                    // Consome o mesmo sorteio por candidato, inclusive em tentativas bloqueadas.
+                    double desempate = random.NextDouble();
+                    if (quantidade == 0) { bloqueada = true; continue; }
+                    double arrependimento = quantidade == 1 ? double.PositiveInfinity
+                        : instancia.Distancias[i][segunda] - instancia.Distancias[i][primeira];
+                    prioridades.Add((i, quantidade, arrependimento, deterministica ? i : desempate));
+                    prioridades.Sort((a, b) =>
                     {
-                        var escolas = Enumerable.Range(0, instancia.Escolas.Length)
-                            .Where(j => solucao.PodeInserir(instancia, i, j, maxTipos))
-                            .OrderBy(j => instancia.Distancias[i][j]).ThenBy(j => j).ToArray();
-                        double arrependimento = escolas.Length < 2 ? double.PositiveInfinity
-                            : instancia.Distancias[i][escolas[1]] - instancia.Distancias[i][escolas[0]];
-                        return (Candidato: i, Escolas: escolas, Arrependimento: arrependimento, Desempate: random.NextDouble());
-                    }).ToArray();
-                if (opcoes.Any(o => o.Escolas.Length == 0)) { completa = false; break; }
-                // Primeira tentativa determinística; reinícios usam lista restrita dos três prioritários.
-                var ordenadas = opcoes.OrderBy(o => o.Escolas.Length == 1 ? 0 : 1)
-                    .ThenByDescending(o => o.Arrependimento)
-                    .ThenBy(o => tentativa == 1 && !aleatorizar ? o.Candidato : o.Desempate).ToArray();
-                var escolhido = ordenadas[tentativa == 1 && !aleatorizar ? 0 : random.Next(Math.Min(3, ordenadas.Length))];
-                int escola = escolhido.Escolas[0];
-                // Nos reinícios, variar também a escola permite escapar de bloqueios por tipos.
+                        int comparacao = (a.Quantidade == 1 ? 0 : 1).CompareTo(b.Quantidade == 1 ? 0 : 1);
+                        if (comparacao == 0) comparacao = b.Arrependimento.CompareTo(a.Arrependimento);
+                        if (comparacao == 0) comparacao = a.Desempate.CompareTo(b.Desempate);
+                        return comparacao == 0 ? a.Candidato.CompareTo(b.Candidato) : comparacao;
+                    });
+                    if (prioridades.Count > 3) prioridades.RemoveAt(3);
+                }
+                if (bloqueada) { completa = false; break; }
+                var escolhido = prioridades[deterministica ? 0 : random.Next(prioridades.Count)];
+                var escolas = ordemEscolas[escolhido.Candidato]
+                    .Where(j => solucao.PodeInserir(instancia, escolhido.Candidato, j, maxTipos)).ToArray();
+                int escola = escolas[0];
                 if ((tentativa > 1 || aleatorizar) && random.NextDouble() < 0.25)
-                    escola = escolhido.Escolas[random.Next(Math.Min(3, escolhido.Escolas.Length))];
+                    escola = escolas[random.Next(Math.Min(3, escolas.Length))];
                 solucao.Inserir(instancia, escolhido.Candidato, escola);
                 historico?.Alocar(instancia, escolhido.Candidato, escola);
+                for (int i = 0; i < instancia.Candidatos.Length; i++)
+                {
+                    if (solucao.Alocacao[i] >= 0 || !viaveis[i][escola]
+                        || solucao.PodeInserir(instancia, i, escola, maxTipos)) continue;
+                    viaveis[i][escola] = false;
+                    quantidades[i]--;
+                    if (primeiras[i] != escola && segundas[i] != escola) continue;
+                    primeiras[i] = segundas[i] = -1;
+                    foreach (int j in ordemEscolas[i])
+                        if (viaveis[i][j])
+                        {
+                            if (primeiras[i] < 0) primeiras[i] = j;
+                            else { segundas[i] = j; break; }
+                        }
+                }
             }
             historico?.Encerrar(completa);
             if (completa)
@@ -108,6 +141,10 @@ public static class Heuristica
 
     // VND: após cada melhoria, volta à realocação; encerra sem melhorias nas duas vizinhanças.
     public static (int Realocacoes, int Trocas) Melhorar(Instancia instancia, Solucao solucao, int maxTipos, bool usarTrocas = true, Historico? historico = null)
+        => BuscaLocalEficiente.Melhorar(instancia, solucao, maxTipos, usarTrocas, historico);
+
+    // Preserva a versão de referência para conferir a equivalência da aceleração.
+    public static (int Realocacoes, int Trocas) MelhorarReferencia(Instancia instancia, Solucao solucao, int maxTipos, bool usarTrocas = true, Historico? historico = null)
     {
         int realocacoes = 0, trocas = 0;
         while (true)

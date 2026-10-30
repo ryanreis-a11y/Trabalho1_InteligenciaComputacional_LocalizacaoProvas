@@ -34,7 +34,7 @@ public static class Program
                 try
                 {
                     var relogio = Stopwatch.StartNew();
-                    var (solucao, tentativa) = Heuristica.Construir(instancia, opcoes.MaxTipos, seed, opcoes.Tentativas, historico, aleatorizar: execucao > 0);
+                    var (solucao, tentativa) = Heuristica.Construir(instancia, opcoes.MaxTipos, seed, opcoes.Tentativas, historico, aleatorizar: true);
                     double tempoConstrucao = relogio.Elapsed.TotalMilliseconds;
                     double inicial = solucao.Custo(instancia);
                     int[] alocacaoInicial = (int[])solucao.Alocacao.Clone();
@@ -54,6 +54,7 @@ public static class Program
                     {
                         instancia = Path.GetFullPath(opcoes.Instancia), opcoes.MaxTipos, opcoes.Busca, opcoes.Tentativas,
                         resultado,
+                        aleatorizar = true,
                         historico = historico.Passos,
                         alocacoes = instancia.Candidatos.Select((c, i) => new
                         {
